@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package proto;
+
+// run task
+service Task {
+  // run task return stream bytes
+  rpc RunTask(TaskReq) returns (stream TaskResp);
+}
+
+// task req
+message TaskReq {
+  string task_id = 1;
+  int32 task_type = 2;
+  bytes task_data = 3;
+}
+
+// task resp stream
+message TaskResp { bytes resp = 3; }
+
+// worker send heartbeat to master server
+service Heartbeat {
+  // registry host
+  rpc Registry(RegistryReq) returns (Empty) {};
+  // send heartbeat
+  rpc Heartbeat(HeartbeatReq) returns (Empty) {};
+}
+
+message RegistryReq {
+  string ip = 1;
+  int32 port = 2;
+  int32 weight = 3;
+  string hostname = 4;
+  string version = 5;
+  string host_group = 6;
+  string remark = 7;
+}
+
+message HeartbeatReq {
+  string ip = 1;
+  int32 port = 2;
+  repeated string running_task = 3;
+}
+
+message Empty {}
