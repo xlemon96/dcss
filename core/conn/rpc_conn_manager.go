@@ -64,22 +64,18 @@ func GetRpcConn(next running.Next) (*grpc.ClientConn, error) {
 			err = errors.New("next host is nil")
 			continue
 		}
-		conn, err = getRpcConn(host.Addr)
-		if err != nil {
+		conn = getRpcConn(host.Addr)
+		if conn == nil {
 			continue
 		}
-		if conn.GetState() == connectivity.Ready {
-			return conn, nil
-		}
-		conn.Close()
 	}
 	return nil, err
 }
 
-func getRpcConn(addr string) (*grpc.ClientConn, error) {
+func getRpcConn(addr string) *grpc.ClientConn {
 	conn := manager.getConn(addr)
 	if conn != nil {
-		return conn, nil
+		return conn
 	}
 	var err error
 	options := []grpc.DialOption{
@@ -92,8 +88,13 @@ func getRpcConn(addr string) (*grpc.ClientConn, error) {
 	defer cancel()
 	conn, err = grpc.DialContext(ctx, addr, options...)
 	if err != nil {
-		return nil, err
+		return nil
 	}
-	manager.addConn(addr, conn)
-	return conn, nil
+	if conn.GetState() == connectivity.Ready {
+		manager.addConn(addr, conn)
+		return conn
+	} else {
+		conn.Close()
+	}
+	return nil
 }

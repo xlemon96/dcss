@@ -12,31 +12,14 @@ import (
 	"regexp"
 	"strconv"
 	"time"
-
-	"github.com/labulaka521/crocodile/core/utils/resp"
 )
 
-var _ TaskExecutor = CodeData{}
+var (
+	_ TaskExecutor = Code{}
+)
 
-type CodeData struct {
-	Lang     Lang   `json:"lang"`
-	LangDesc string `json:"langdesc" comment:"Lang"`
-	Code     string `json:"code" comment:"Code"`
-}
-
-// Lang task type lang code
 type Lang uint8
 
-const (
-	shell Lang = iota + 1
-	python3
-	golang
-	python
-	nodejs
-	windowsbat
-)
-
-// String return Lanf str
 func (l Lang) String() string {
 	switch l {
 	case shell:
@@ -49,208 +32,58 @@ func (l Lang) String() string {
 		return "golang"
 	case nodejs:
 		return "nodejs"
-	case windowsbat:
-		return "windowsbat"
+	case windowsBat:
+		return "windowsBat"
 	default:
-		return "unknow lang"
+		return "unknown lang"
 	}
 }
 
-func getcmd(ctx context.Context, lang Lang, code string) (*exec.Cmd, string, error) {
-	switch lang {
-	case shell:
-		return runshell(ctx, code)
-	case python:
-		return runpython(ctx, code)
-	case python3:
-		return runpython3(ctx, code)
-	case golang:
-		return rungolang(ctx, code)
-	case nodejs:
-		return runnodejs(ctx, code)
-	case windowsbat:
-		return runwindowsbat(ctx, code)
-	default:
-		return nil, "", fmt.Errorf("can not support lang: %d", lang)
-	}
-}
-
-// Shell
-// run shell code
-func runshell(ctx context.Context, code string) (*exec.Cmd, string, error) {
-	shell := os.Getenv("SHELL")
-	if shell == "" {
-		shell = "/bin/sh"
-	}
-	tmpfile, err := ioutil.TempFile("", "*.sh")
-	if err != nil {
-		return nil, "", err
-	}
-	shellcodepath := tmpfile.Name()
-	_, err = tmpfile.WriteString(code)
-	if err != nil {
-		return nil, "", err
-	}
-
-	tmpfile.Sync()
-	tmpfile.Close()
-	cmd := exec.CommandContext(ctx, shell, shellcodepath)
-	return cmd, shellcodepath, nil
-}
-
-// Python
-// run python code
-func runpython(ctx context.Context, code string) (*exec.Cmd, string, error) {
-	tmpfile, err := ioutil.TempFile("", "*.py")
-	if err != nil {
-		return nil, "", err
-	}
-	pythoncodepath := tmpfile.Name()
-	_, err = tmpfile.WriteString(code)
-	if err != nil {
-		return nil, "", err
-	}
-	tmpfile.Sync()
-	tmpfile.Close()
-	cmd := exec.CommandContext(ctx, "python", pythoncodepath)
-	return cmd, pythoncodepath, nil
-}
-
-// Python3
-// run python code
-func runpython3(ctx context.Context, code string) (*exec.Cmd, string, error) {
-	tmpfile, err := ioutil.TempFile("", "*.py")
-	if err != nil {
-		return nil, "", err
-	}
-	python3codepath := tmpfile.Name()
-	_, err = tmpfile.WriteString(code)
-	if err != nil {
-		return nil, "", err
-	}
-	tmpfile.Sync()
-	tmpfile.Close()
-	cmd := exec.CommandContext(ctx, "python3", python3codepath)
-	return cmd, python3codepath, nil
-}
-
-// Javascript
-// run python code
-func runnodejs(ctx context.Context, code string) (*exec.Cmd, string, error) {
-	tmpfile, err := ioutil.TempFile("", "*.js")
-	if err != nil {
-		return nil, "", err
-	}
-	nodejscodepath := tmpfile.Name()
-	_, err = tmpfile.WriteString(code)
-	if err != nil {
-		return nil, "", err
-	}
-	tmpfile.Sync()
-	tmpfile.Close()
-	cmd := exec.CommandContext(ctx, "node", nodejscodepath)
-	return cmd, nodejscodepath, nil
-}
-
-// Golang
 const (
-	modcontent = `module crocodile
-
-go `
-	modname   = "go.mod"
-	gonamepre = "crocodile_"
+	shell Lang = iota + 1
+	python3
+	golang
+	python
+	nodejs
+	windowsBat
 )
 
-// run golang code
-func rungolang(ctx context.Context, code string) (*exec.Cmd, string, error) {
-	// golang version must rather equal 1.11
-	// GO111MODULE ust be on
-	cmd := exec.CommandContext(context.Background(), "go", "version")
+const (
+	modContent = `module crocodile
 
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, "", err
-	}
+go `
+	modName   = "go.mod"
+	goNamePre = "crocodile_"
+)
 
-	pattern := `[0-1]\.[0-9]{1,2}`
-	re := regexp.MustCompile(pattern)
-	goversion := re.FindString(string(out))
-	if goversion < "1.11" {
-		err := errors.New("go version must rather equal go1.11 and enable go module")
-		return nil, "", err
-	}
-	if os.Getenv("GO111MODULE") != "on" {
-		os.Setenv("GO111MODULE", "on")
-	}
-	modcontent := modcontent + goversion + "\n"
-
-	tmpdir, err := ioutil.TempDir("", "crocodile_")
-	if err != nil {
-		return nil, "", err
-	}
-
-	err = ioutil.WriteFile(path.Join(tmpdir, modname), []byte(modcontent), os.ModePerm)
-	if err != nil {
-		return nil, "", err
-	}
-	gonamefile := gonamepre + strconv.FormatInt(time.Now().Unix(), 10) + ".go"
-	err = ioutil.WriteFile(path.Join(tmpdir, gonamefile), []byte(code), os.ModePerm)
-	if err != nil {
-		return nil, "", err
-	}
-
-	os.Chdir(tmpdir)
-
-	gocmd := exec.CommandContext(ctx, "go", "run", gonamefile)
-
-	return gocmd, tmpdir, nil
+type Code struct {
+	Lang     Lang   `json:"lang"`
+	LangDesc string `json:"lang_desc"`
+	Code     string `json:"code"`
 }
 
-// Windows bat
-// run bat code
-func runwindowsbat(ctx context.Context, code string) (*exec.Cmd, string, error) {
-	tmpfile, err := ioutil.TempFile("", "*.bat")
-	if err != nil {
-		return nil, "", err
-	}
-	batcodepath := tmpfile.Name()
-	_, err = tmpfile.WriteString(code)
-	if err != nil {
-		return nil, "", err
-	}
-
-	tmpfile.Sync()
-	tmpfile.Close()
-	cmd := exec.CommandContext(ctx, "cmd", "/C", batcodepath)
-	return cmd, batcodepath, nil
+func (c Code) Type() string {
+	return c.Lang.String()
 }
 
-// Type return task run lang
-func (ds CodeData) Type() string {
-	return ds.Lang.String()
-}
-
-// Run implment TaskRuner
-// run shell command
-// return io.ReadCloser
-func (ds CodeData) Run(ctx context.Context) io.ReadCloser {
+func (c Code) Run(ctx context.Context) io.ReadCloser {
 	pr, pw := io.Pipe()
 	go func() {
 		var (
 			exitCode = DefaultExitCode
 			err      error
-			codepath string
+			codePath string
 			cmd      *exec.Cmd
 		)
 		defer pw.Close()
 		defer func() {
 			now := time.Now().Local().Format("2006-01-02 15:04:05: ")
-			pw.Write([]byte(fmt.Sprintf("%sTask Run Finished,Return Code:%5d", now, exitCode))) // write exitCode,total 5 byte
-			if codepath != "" {
-				_ = os.Remove(codepath)
+			pw.Write([]byte(fmt.Sprintf("%stask finished, return code:%5d", now, exitCode)))
+			if codePath != "" {
+				_ = os.Remove(codePath)
 			}
 		}()
-		cmd, codepath, err = getcmd(ctx, ds.Lang, ds.Code)
+		cmd, codePath, err = getCmd(ctx, c.Lang, c.Code)
 		if err != nil {
 			pw.Write([]byte(err.Error()))
 			return
@@ -262,21 +95,9 @@ func (ds CodeData) Run(ctx context.Context) io.ReadCloser {
 			pw.Write([]byte(err.Error()))
 			return
 		}
-
 		err = cmd.Wait()
 		if err != nil {
-			// deal err
-			// if context err,will change err to custom msg
-			switch ctx.Err() {
-			case context.DeadlineExceeded:
-				pw.Write([]byte(resp.GetMsg(resp.ErrCtxDeadlineExceeded)))
-			case context.Canceled:
-				pw.Write([]byte(resp.GetMsg(resp.ErrCtxCanceled)))
-			default:
-				pw.Write([]byte(err.Error()))
-			}
-
-			// try to get the exit code
+			pw.Write([]byte(err.Error()))
 			if exitError, ok := err.(*exec.ExitError); ok {
 				exitCode = exitError.ExitCode()
 			}
@@ -286,4 +107,142 @@ func (ds CodeData) Run(ctx context.Context) io.ReadCloser {
 
 	}()
 	return pr
+}
+
+func getCmd(ctx context.Context, lang Lang, code string) (*exec.Cmd, string, error) {
+	switch lang {
+	case shell:
+		return shellCmd(ctx, code)
+	case python:
+		return pythonCmd(ctx, code)
+	case python3:
+		return python3Cmd(ctx, code)
+	case golang:
+		return golangCmd(ctx, code)
+	case nodejs:
+		return nodeJsCmd(ctx, code)
+	case windowsBat:
+		return windowsBatCmd(ctx, code)
+	default:
+		return nil, "", fmt.Errorf("can not support lang: %d", lang)
+	}
+}
+
+func shellCmd(ctx context.Context, code string) (*exec.Cmd, string, error) {
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		shell = "/bin/sh"
+	}
+	tmpFile, err := ioutil.TempFile("", "*.sh")
+	if err != nil {
+		return nil, "", err
+	}
+	shellCodePath := tmpFile.Name()
+	_, err = tmpFile.WriteString(code)
+	if err != nil {
+		return nil, "", err
+	}
+	tmpFile.Sync()
+	tmpFile.Close()
+	cmd := exec.CommandContext(ctx, shell, shellCodePath)
+	return cmd, shellCodePath, nil
+}
+
+func pythonCmd(ctx context.Context, code string) (*exec.Cmd, string, error) {
+	tmpFile, err := ioutil.TempFile("", "*.py")
+	if err != nil {
+		return nil, "", err
+	}
+	pythonCodePath := tmpFile.Name()
+	_, err = tmpFile.WriteString(code)
+	if err != nil {
+		return nil, "", err
+	}
+	tmpFile.Sync()
+	tmpFile.Close()
+	cmd := exec.CommandContext(ctx, "python", pythonCodePath)
+	return cmd, pythonCodePath, nil
+}
+
+func python3Cmd(ctx context.Context, code string) (*exec.Cmd, string, error) {
+	tmpFile, err := ioutil.TempFile("", "*.py")
+	if err != nil {
+		return nil, "", err
+	}
+	python3CodePath := tmpFile.Name()
+	_, err = tmpFile.WriteString(code)
+	if err != nil {
+		return nil, "", err
+	}
+	tmpFile.Sync()
+	tmpFile.Close()
+	cmd := exec.CommandContext(ctx, "python3", python3CodePath)
+	return cmd, python3CodePath, nil
+}
+
+func golangCmd(ctx context.Context, code string) (*exec.Cmd, string, error) {
+	cmd := exec.CommandContext(context.Background(), "go", "version")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, "", err
+	}
+	pattern := `[0-1]\.[0-9]{1,2}`
+	re := regexp.MustCompile(pattern)
+	goVersion := re.FindString(string(out))
+	if goVersion < "1.11" {
+		err := errors.New("go version must rather equal go1.11 and enable go module")
+		return nil, "", err
+	}
+	if os.Getenv("GO111MODULE") != "on" {
+		os.Setenv("GO111MODULE", "on")
+	}
+	modContent := modContent + goVersion + "\n"
+	tmpdir, err := ioutil.TempDir("", "crocodile_")
+	if err != nil {
+		return nil, "", err
+	}
+	err = ioutil.WriteFile(path.Join(tmpdir, modName), []byte(modContent), os.ModePerm)
+	if err != nil {
+		return nil, "", err
+	}
+	goNameFile := goNamePre + strconv.FormatInt(time.Now().Unix(), 10) + ".go"
+	err = ioutil.WriteFile(path.Join(tmpdir, goNameFile), []byte(code), os.ModePerm)
+	if err != nil {
+		return nil, "", err
+	}
+	os.Chdir(tmpdir)
+	goCmd := exec.CommandContext(ctx, "go", "run", goNameFile)
+	return goCmd, tmpdir, nil
+}
+
+func nodeJsCmd(ctx context.Context, code string) (*exec.Cmd, string, error) {
+	tmpFile, err := ioutil.TempFile("", "*.js")
+	if err != nil {
+		return nil, "", err
+	}
+	nodejsCodePath := tmpFile.Name()
+	_, err = tmpFile.WriteString(code)
+	if err != nil {
+		return nil, "", err
+	}
+	tmpFile.Sync()
+	tmpFile.Close()
+	cmd := exec.CommandContext(ctx, "node", nodejsCodePath)
+	return cmd, nodejsCodePath, nil
+}
+
+func windowsBatCmd(ctx context.Context, code string) (*exec.Cmd, string, error) {
+	tmpFile, err := ioutil.TempFile("", "*.bat")
+	if err != nil {
+		return nil, "", err
+	}
+	batCodePath := tmpFile.Name()
+	_, err = tmpFile.WriteString(code)
+	if err != nil {
+		return nil, "", err
+	}
+	tmpFile.Sync()
+	tmpFile.Close()
+	cmd := exec.CommandContext(ctx, "cmd", "/C", batCodePath)
+	return cmd, batCodePath, nil
 }

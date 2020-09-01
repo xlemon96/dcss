@@ -22,7 +22,7 @@ type TaskExecutor interface {
 func GetTaskExecutor(t *proto.TaskReq) (TaskExecutor, error) {
 	switch running.TaskType(t.TaskType) {
 	case running.Code:
-		var code CodeData
+		var code Code
 		err := json.Unmarshal(t.TaskData, &code)
 		if err != nil {
 			return nil, err
@@ -30,7 +30,7 @@ func GetTaskExecutor(t *proto.TaskReq) (TaskExecutor, error) {
 		code.LangDesc = code.Lang.String()
 		return code, err
 	case running.API:
-		var api APIData
+		var api API
 		err := json.Unmarshal(t.TaskData, &api)
 		if err != nil {
 			return nil, err

@@ -61,7 +61,7 @@ func (s *Scheduler) dealEvent(data []byte) {
 		task := &entity.Task{
 			ID: event.TaskID,
 		}
-		err := task.GetByID(db.Db())
+		err := task.DescribeTaskByID(db.Db())
 		if err != nil {
 			return
 		}

@@ -75,7 +75,7 @@ func (t *task) run() {
 	defer close(stopLease)
 
 	// 获取任务需要的执行数据
-	task := &entity.Task{}
+	task := entity.Task{ID: t.id}
 	err := task.DescribeTaskByID(db.Db())
 	if err != nil {
 
