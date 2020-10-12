@@ -20,15 +20,7 @@ func New() *Task {
 	return &Task{}
 }
 
-func (t *Task) RunTask(stream proto.Task_RunTaskServer) error {
-	req, err := stream.Recv()
-	if err != nil {
-		err = stream.Send(&proto.TaskResp{Resp: []byte(err.Error())})
-		if err != nil {
-			// todo print log
-		}
-		return nil
-	}
+func (t *Task) RunTask(req *proto.TaskReq, stream proto.Task_RunTaskServer) error {
 	e, err := executor.GetTaskExecutor(req)
 	if err != nil {
 		err = stream.Send(&proto.TaskResp{Resp: []byte(err.Error())})
